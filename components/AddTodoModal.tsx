@@ -26,6 +26,10 @@ export default function AddTodoModal({ visible, todoText, onChangeText, onAdd, o
             placeholder="What do you want to do?"
             value={todoText}
             onChangeText={onChangeText}
+            autoFocus={true}  // ADD THIS LINE
+            onSubmitEditing={onAdd}  // ADD THIS
+            returnKeyType="done"
+
           />
           
           <View style={styles.modalButtons}>

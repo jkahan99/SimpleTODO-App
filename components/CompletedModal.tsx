@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, FlatList, Modal, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Todo } from '../types/Todo';
 import TodoItem from './TodoItem';
 
@@ -11,14 +11,57 @@ type CompletedModalProps = {
   onDelete: (id: number) => void;
   onEdit: (id: number) => void;
 };
-function CompletedModal({ visible, completedTodos, onClose, onToggle, onDelete, onEdit }: CompletedModalProps) {
+
+export default function CompletedModal({ visible, completedTodos, onClose, onToggle, onDelete, onEdit }: CompletedModalProps) {
+  const translateX = React.useRef(new Animated.Value(0)).current;
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only trigger on right swipe (going back/left)
+        return gestureState.dx > 20 && Math.abs(gestureState.dy) < 50;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow positive values (swiping right to go back)
+        if (gestureState.dx > 0) {
+          translateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100) {
+          // Swipe far enough - close the modal
+          Animated.timing(translateX, {
+            toValue: 400,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+            translateX.setValue(0);
+          });
+        } else {
+          // Snap back
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <Animated.View 
+        style={[
+          styles.container,
+          { transform: [{ translateX }] }
+        ]}
+        {...panResponder.panHandlers}
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Completed</Text>
           <TouchableOpacity style={styles.newButton} onPress={onClose}>
@@ -42,7 +85,7 @@ function CompletedModal({ visible, completedTodos, onClose, onToggle, onDelete, 
             <Text style={styles.emptyText}>No completed tasks yet</Text>
           }
         />
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -50,6 +93,7 @@ function CompletedModal({ visible, completedTodos, onClose, onToggle, onDelete, 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'white',
   },
   header: {
     flexDirection: 'row',
@@ -82,4 +126,3 @@ const styles = StyleSheet.create({
     marginTop: 50,
   },
 });
-export default CompletedModal;

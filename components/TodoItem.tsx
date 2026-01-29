@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface Todo {
   id: number;
@@ -16,13 +16,71 @@ interface TodoItemProps {
 }
 
 export default function TodoItem({ item, onToggle, onDelete, onEdit, isCompleted }: TodoItemProps) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const checkScale = React.useRef(new Animated.Value(item.completed ? 1 : 0)).current;
+  const checkOpacity = React.useRef(new Animated.Value(item.completed ? 1 : 0)).current;
+
+  // Animate checkmark in when item becomes completed
+  React.useEffect(() => {
+    if (item.completed) {
+      Animated.parallel([
+        Animated.spring(checkScale, {
+          toValue: 1,
+          friction: 3,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(checkOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      checkScale.setValue(0);
+      checkOpacity.setValue(0);
+    }
+  }, [item.completed]);
+
+  const handleToggle = () => {
+    // Bounce the whole circle
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.15,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    onToggle(item.id);
+  };
+
   return (
     <View style={styles.todoRow}>
-      <TouchableOpacity onPress={() => onToggle(item.id)}>
-        <View style={[styles.circle, isCompleted && styles.circleCompleted]}>
-          {item.completed && <Text style={styles.checkmark}>✓</Text>}
-        </View>
-      </TouchableOpacity>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity onPress={handleToggle} activeOpacity={0.6}>
+          <View style={[styles.circle, isCompleted && styles.circleCompleted]}>
+            {item.completed && (
+              <Animated.Text 
+                style={[
+                  styles.checkmark,
+                  { 
+                    transform: [{ scale: checkScale }],
+                    opacity: checkOpacity 
+                  }
+                ]}
+              >
+                ✓
+              </Animated.Text>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
       
       <TouchableOpacity 
         style={styles.todoContent}
@@ -86,4 +144,3 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 });
-

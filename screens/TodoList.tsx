@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AddTodoModal from '../components/AddTodoModal';
 import CompletedModal from '../components/CompletedModal';
 import EditTodoModal from '../components/EditTodoModal';
 import { Todo } from '../types/Todo';
-
 
 export default function TodoList() {
 
@@ -16,7 +16,7 @@ const [todoText, setTodoText] = useState('');
 const [showCompleted, setShowCompleted] = useState(false);
 const [editingId, setEditingId] = useState<number | null>(null);  // ADD THIS
 const [editText, setEditText] = useState('');            
-
+const [justCompleted, setJustCompleted] = useState<number | null>(null);
 useEffect(() => {
   loadTodos();
 }, []);
@@ -27,6 +27,7 @@ useEffect(() => {
 
 
 const addTodo = (title: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   const newTodo: Todo = {
     id: Date.now(),
     title,
@@ -36,15 +37,39 @@ const addTodo = (title: string) => {
 }
 
 const toggleComplete = (id: number) => {
-  setTodos(todos.map(todo => {
-    if (todo.id === id) {
-      return {...todo, completed: !todo.completed};
-    }
-    return todo;
-  }));
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  
+  const todo = todos.find(t => t.id === id);
+  if (todo && !todo.completed) {
+    setJustCompleted(id);
+    
+    setTimeout(() => {
+      setTodos(todos.map(todo => {
+        if (todo.id === id) {
+          return {...todo, completed: true};
+        }
+        return todo;
+      }));
+      
+      // Clear justCompleted so it disappears from active list
+      setTimeout(() => {
+        setJustCompleted(null);
+      }, 700);
+      
+    }, 100);
+  } else {
+    setJustCompleted(null);
+    setTodos(todos.map(todo => {
+      if (todo.id === id) {
+        return {...todo, completed: false};
+      }
+      return todo;
+    }));
+  }
 };
 
 const deleteTodo = (id: number) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   setTodos(todos.filter(todo => todo.id !== id));
 };
 
@@ -86,9 +111,78 @@ const loadTodos = async () => {
   }
 };
 
-const activeTodos = todos.filter(todo => !todo.completed);
+const activeTodos = todos.filter(todo => !todo.completed || todo.id === justCompleted);
 const completedTodos = todos.filter(todo => todo.completed);
+// Animated circle component
+// Animated circle component with green flash
+// Animated circle component with animated checkmark
+const AnimatedTodoCircle = ({ item, onToggle }: { item: Todo; onToggle: () => void }) => {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const checkScale = React.useRef(new Animated.Value(0)).current;
+  const checkOpacity = React.useRef(new Animated.Value(0)).current;
 
+  // Animate checkmark in when item becomes completed
+  React.useEffect(() => {
+    if (item.completed) {
+      Animated.parallel([
+        Animated.spring(checkScale, {
+          toValue: 1,
+          friction: 3,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(checkOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      checkScale.setValue(0);
+      checkOpacity.setValue(0);
+    }
+  }, [item.completed]);
+
+  const handlePress = () => {
+    // Bounce the whole circle
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.15,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    onToggle();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.6}>
+        <View style={item.completed ? styles.circleCompleted : styles.circle}>
+          {item.completed && (
+            <Animated.Text 
+              style={[
+                styles.checkmark,
+                { 
+                  transform: [{ scale: checkScale }],
+                  opacity: checkOpacity 
+                }
+              ]}
+            >
+              ✓
+            </Animated.Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 return (
   <>
     <View style={styles.container}>
@@ -108,26 +202,39 @@ return (
         data={activeTodos}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.todoRow}>
-            <TouchableOpacity 
-              style={styles.todoContent}
-              onPress={() => toggleComplete(item.id)}
-            >
-              <View style={item.completed ? styles.circleCompleted : styles.circle}>
-                {item.completed && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={item.completed ? styles.todoTitleCompleted : styles.todoTitle}>
-                {item.title}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => deleteTodo(item.id)}>
-              <Text style={styles.deleteButton}>🗑️</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+  <View style={styles.todoRow}>
+    {/* CIRCLE - Click to toggle complete */}
+    {/*<TouchableOpacity onPress={() => toggleComplete(item.id)}>
+      <View style={item.completed ? styles.circleCompleted : styles.circle}>
+        {item.completed && <Text style={styles.checkmark}>✓</Text>}
+      </View>
+    </TouchableOpacity>*/}
+    {/* CIRCLE - Click to toggle complete */}
+<AnimatedTodoCircle item={item} onToggle={() => toggleComplete(item.id)} />
+    
+    {/* TEXT - Click to edit */}
+    <TouchableOpacity 
+      style={styles.todoContent}
+      onPress={() => openEditModal(item.id)}
+    >
+      <Text style={styles.todoTitle}>
+  {item.title}
+</Text>
+    </TouchableOpacity>
+    
+    {/* DELETE BUTTON */}
+    <TouchableOpacity onPress={() => deleteTodo(item.id)}>
+      <Text style={styles.deleteButton}>🗑️</Text>
+    </TouchableOpacity>
+  </View>
+)}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No todos yet. Tap "New" to add one!</Text>
-        }
+  <View style={styles.emptyState}>
+    <Text style={styles.emptyIcon}>✨</Text>
+    <Text style={styles.emptyTitle}>All clear!</Text>
+    <Text style={styles.emptyText}>Tap "New" to add a task</Text>
+  </View>
+}
       />
 
       {/* COMPLETED BUTTON */}
@@ -222,11 +329,31 @@ todoRow: {
   flexDirection: 'row',
   alignItems: 'center',
   backgroundColor: 'white',
-  paddingVertical: 12,
+  paddingVertical: 14,
   paddingHorizontal: 20,
   borderBottomWidth: 1,
   borderBottomColor: '#e5e5ea',
   justifyContent: 'space-between',  // Add this
+},
+emptyState: {
+  alignItems: 'center',
+  marginTop: 100,
+},
+emptyIcon: {
+  fontSize: 48,
+  marginBottom: 16,
+},
+emptyTitle: {
+  fontSize: 24,
+  fontWeight: '600',
+  color: '#000',
+  marginBottom: 8,
+},
+// Keep your existing emptyText but update it:
+emptyText: {
+  textAlign: 'center',
+  color: '#8e8e93',
+  fontSize: 17,
 },
 todoContent: {
   flexDirection: 'row',
@@ -275,12 +402,6 @@ modalButtonText: {
   color: 'white',
   fontSize: 17,
   fontWeight: '600',
-},
-emptyText: {
-  textAlign: 'center',
-  color: '#8e8e93',
-  fontSize: 17,
-  marginTop: 50,
 },
 todoTitle: {
   fontSize: 17,
