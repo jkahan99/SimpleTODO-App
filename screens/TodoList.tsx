@@ -6,7 +6,8 @@ import AddTodoModal from '../components/AddTodoModal';
 import CompletedModal from '../components/CompletedModal';
 import EditTodoModal from '../components/EditTodoModal';
 import { Todo } from '../types/Todo';
-
+import { generateWittyNotification } from '../utils/aiNotifications';
+import { cancelNotification, requestNotificationPermissions, scheduleNotification } from '../utils/notifications';
 export default function TodoList() {
 
 //make an array of ToDo items
@@ -24,16 +25,37 @@ useEffect(() => {
 useEffect(() => {
   saveTodos();
 }, [todos]);
+useEffect(() => {
+  requestNotificationPermissions();
+}, []);
 
 
-const addTodo = (title: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+const addTodo = async (title: string) => {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  
   const newTodo: Todo = {
     id: Date.now(),
     title,
     completed: false,
   };
+  
+  // Add to state IMMEDIATELY (user sees it right away)
   setTodos([...todos, newTodo]);
+  
+  // THEN do the slow AI stuff in background
+  const aiMessage = await generateWittyNotification(title);
+  console.log('AI message for "' + title + '":', aiMessage);
+
+  const notificationId = await scheduleNotification(newTodo.id, aiMessage, 15);
+  console.log('Notification scheduled for 15 seconds!');
+  
+  // Update the todo with notification ID
+  setTodos(prevTodos => prevTodos.map(todo => 
+    todo.id === newTodo.id 
+      ? {...todo, notificationId} 
+      : todo
+  ));
 }
 
 const toggleComplete = (id: number) => {
@@ -42,7 +64,11 @@ const toggleComplete = (id: number) => {
   const todo = todos.find(t => t.id === id);
   if (todo && !todo.completed) {
     setJustCompleted(id);
-    
+
+    if (todo.notificationId) {
+      cancelNotification(todo.notificationId);
+      console.log('Notification cancelled!');
+    }
     setTimeout(() => {
       setTodos(todos.map(todo => {
         if (todo.id === id) {
@@ -70,6 +96,11 @@ const toggleComplete = (id: number) => {
 
 const deleteTodo = (id: number) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const todo = todos.find(t => t.id === id);
+  if (todo?.notificationId) {
+    cancelNotification(todo.notificationId);
+    console.log('Notification cancelled!');
+  }
   setTodos(todos.filter(todo => todo.id !== id));
 };
 
