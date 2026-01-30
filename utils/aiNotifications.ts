@@ -1,31 +1,32 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: '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' // We'll fix this later!
-  ,dangerouslyAllowBrowser: true
-}
-);
+const WORKER_URL = 'https://simpletodo-ai.jkahan2.workers.dev';
 
 export async function generateWittyNotification(todoTitle: string): Promise<string> {
+  // Basic content filter
+  const bannedWords = ['rape', 'kill', 'suicide', 'abuse', 'harm'];
+  const lowerTitle = todoTitle.toLowerCase();
+  
+  if (bannedWords.some(word => lowerTitle.includes(word))) {
+    return `Don't forget: ${todoTitle}!`;
+  }
+  
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 100,
-      messages: [{
-        role: 'user',
-        content: `Generate a single funny, witty, motivational push notification (max 60 characters) to remind someone to complete this task: "${todoTitle}". Be mean. Just return the notification text, nothing else.`
-      }]
+    const response = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ todoTitle }),
     });
-    
 
-    const firstBlock = response.content[0];
-    if (firstBlock.type === 'text') {
-      return firstBlock.text.trim();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return `Don't forget: ${todoTitle}!`; // Fallback
+    const data = await response.json();
+    return data.message;
+    
   } catch (error) {
     console.error('AI generation failed:', error);
-    return `Don't forget: ${todoTitle}!`; // Fallback
+    return `Don't forget: ${todoTitle}!`;
   }
 }
