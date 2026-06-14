@@ -334,9 +334,10 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   settingsButton: {
+    // floated to the far right, out of flow so the title stays centered
     position: 'absolute',
-    right: Spacing.xl,                               // 20
-    bottom: Spacing.lg,                              // 16
+    right: Spacing.xl,                                // 20
+    bottom: Spacing.lg + 7,                           // 23 — 7px higher
   },
 
   listContent: {
