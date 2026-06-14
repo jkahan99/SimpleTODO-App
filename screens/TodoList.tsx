@@ -7,11 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddTodoModal from '../components/AddTodoModal';
 import CompletedModal from '../components/CompletedModal';
 import EditTodoModal from '../components/EditTodoModal';
+import PersonalitySettingsModal from '../components/PersonalitySettingsModal';
 import TodoItem from '../components/TodoItem';
 import { Colors, Shadows, Spacing, Typography } from '../constants/theme';
 import { Todo } from '../types/Todo';
 import { generateWittyNotification } from '../utils/aiNotifications';
 import { cancelNotification, requestNotificationPermissions, scheduleNotification } from '../utils/notifications';
+import { DEFAULT_PERSONALITY, loadPersonality, Personality, savePersonality } from '../utils/personality';
 
 export default function TodoList() {
 
@@ -25,10 +27,21 @@ const [editText, setEditText] = useState('');
 const [justCompleted, setJustCompleted] = useState<number | null>(null);
 const [newNotificationDate, setNewNotificationDate] = useState<Date | null>(null);
 const [editNotificationDate, setEditNotificationDate] = useState<Date | null>(null);
+const [personality, setPersonality] = useState<Personality>(DEFAULT_PERSONALITY);
+const [settingsVisible, setSettingsVisible] = useState(false);
 
 useEffect(() => {
   loadTodos();
 }, []);
+
+useEffect(() => {
+  loadPersonality().then(setPersonality);
+}, []);
+
+const changePersonality = (next: Personality) => {
+  setPersonality(next);
+  savePersonality(next);
+};
 
 useEffect(() => {
   saveTodos();
@@ -51,7 +64,7 @@ const addTodo = async (title: string, notificationDate: Date | null) => {
 
   if (!notificationDate) return;
 
-  const message = await generateWittyNotification(title);
+  const message = await generateWittyNotification(title, personality);
   const nId = await scheduleNotification(newTodo.id, message, notificationDate);
 
   setTodos(prev => prev.map(t =>
@@ -97,7 +110,7 @@ const toggleComplete = async (id: number) => {
     if (todo?.notificationDate) {
       const notificationDate = new Date(todo.notificationDate);
       if (notificationDate > new Date()) {
-        const message = await generateWittyNotification(todo.title);
+        const message = await generateWittyNotification(todo.title, personality);
         const nId = await scheduleNotification(id, message, notificationDate);
         setTodos(prev => prev.map(t =>
           t.id === id ? { ...t, notificationIds: [nId] } : t
@@ -128,7 +141,7 @@ const editTodo = async (id: number, newTitle: string, notificationDate: Date | n
   let notificationDateStr: string | undefined;
 
   if (notificationDate) {
-    const message = await generateWittyNotification(newTitle);
+    const message = await generateWittyNotification(newTitle, personality);
     const nId = await scheduleNotification(id, message, notificationDate);
     notificationIds = [nId];
     notificationDateStr = notificationDate.toISOString();
@@ -183,6 +196,13 @@ return (
       {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top - 12 }]}>
         <Text style={styles.headerTitle}>Get It Done</Text>
+        <Pressable
+          style={({ pressed }) => [styles.settingsButton, pressed && { opacity: 0.6 }]}
+          onPress={() => setSettingsVisible(true)}
+          hitSlop={8}
+        >
+          <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
+        </Pressable>
       </View>
 
       {/* TODO LIST */}
@@ -259,6 +279,13 @@ return (
       onEdit={openEditModal}
     />
 
+    <PersonalitySettingsModal
+      visible={settingsVisible}
+      personality={personality}
+      onSelect={changePersonality}
+      onClose={() => setSettingsVisible(false)}
+    />
+
     <EditTodoModal
       visible={editingId !== null}
       editText={editText}
@@ -305,6 +332,11 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily,
     letterSpacing: Typography.letterSpacing.display, // -0.5
     color: Colors.textPrimary,
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: Spacing.xl,                               // 20
+    bottom: Spacing.lg,                              // 16
   },
 
   listContent: {

@@ -1,15 +1,20 @@
+import { DEFAULT_PERSONALITY, Personality } from './personality';
+
 const WORKER_URL = 'https://simpletodo-ai.jkahan2.workers.dev';
 
-export async function generateWittyNotification(todoTitle: string): Promise<string> {
+export async function generateWittyNotification(
+  todoTitle: string,
+  personality: Personality = DEFAULT_PERSONALITY,
+): Promise<string> {
   try {
-    console.log('Generating notification for:', todoTitle);
-    
+    console.log('Generating notification for:', todoTitle, '(personality:', personality + ')');
+
     const response = await fetch(WORKER_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ todoTitle }),
+      body: JSON.stringify({ todoTitle, personality }),
     });
 
     if (!response.ok) {
